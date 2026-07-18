@@ -1,0 +1,66 @@
+name: build-and-attest
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Service image to publish
+        type: choice
+        required: true
+        options: [web, gateway, catalog, cart, checkout, orders, notifications, inventory, payments, analytics]
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: northstar-release-${{ inputs.service }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        shell: bash
+        run: |
+          case "${{ inputs.service }}" in
+            web) echo "context=apps/web" >> "$GITHUB_OUTPUT"; echo "dockerfile=apps/web/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            inventory) echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=services/inventory-java/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            payments) echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=services/payments-go/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            analytics) echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=services/analytics-python/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            *) echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=services/${{ inputs.service }}/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          role-session-name: gha-${{ github.run_id }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: ${{ steps.image.outputs.context }}
+          file: ${{ steps.image.outputs.dockerfile }}
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/northstar/${{ inputs.service }}:${{ github.sha }}
+          build-args: |
+            VITE_GATEWAY_URL=/api/v1
+            VITE_JAEGER_URL=${{ vars.JAEGER_URL }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.ecr.outputs.registry }}/northstar/${{ inputs.service }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Promotion instruction
+        run: echo "Open a reviewed config-repository PR promoting ${{ inputs.service }}@${{ steps.build.outputs.digest }}; CI does not apply to the cluster."

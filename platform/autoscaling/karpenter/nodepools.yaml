@@ -1,0 +1,34 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata: { name: northstar-apps }
+spec:
+  role: REPLACE_KARPENTER_NODE_ROLE
+  amiSelectorTerms: [{ alias: al2023@latest }]
+  subnetSelectorTerms: [{ tags: { karpenter.sh/discovery: northstar-dev } }]
+  securityGroupSelectorTerms: [{ tags: { karpenter.sh/discovery: northstar-dev } }]
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs: { volumeSize: 50Gi, volumeType: gp3, encrypted: true, deleteOnTermination: true }
+  tags: { Project: northstar-commerce, Environment: dev, CostCenter: training }
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata: { name: applications-spot }
+spec:
+  limits: { cpu: "100", memory: 200Gi }
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+    budgets: [{ nodes: "20%" }]
+  template:
+    metadata: { labels: { workload: applications, capacity: spot } }
+    spec:
+      nodeClassRef: { group: karpenter.k8s.aws, kind: EC2NodeClass, name: northstar-apps }
+      expireAfter: 720h
+      terminationGracePeriod: 24h
+      requirements:
+        - { key: karpenter.sh/capacity-type, operator: In, values: [spot] }
+        - { key: kubernetes.io/arch, operator: In, values: [amd64, arm64] }
+        - { key: karpenter.k8s.aws/instance-category, operator: In, values: [c, m, r] }
+        - { key: karpenter.k8s.aws/instance-generation, operator: Gt, values: [5] }
+        - { key: topology.kubernetes.io/zone, operator: In, values: [us-east-1a, us-east-1b, us-east-1c] }

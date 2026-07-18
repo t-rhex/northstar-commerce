@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata: { name: gateway-smoke, namespace: northstar }
+spec:
+  metrics:
+    - name: ready
+      interval: 10s
+      count: 6
+      failureLimit: 1
+      successCondition: result == "ok"
+      provider:
+        web:
+          url: http://gateway-preview:4000/health/ready
+          jsonPath: "{$.status}"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata: { name: gateway-slo, namespace: northstar }
+spec:
+  metrics:
+    - name: success-rate
+      interval: 30s
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] >= 0.99
+      provider:
+        prometheus:
+          address: http://prometheus-operated.observability:9090
+          query: |
+            sum(rate(http_server_requests_total{service="gateway",status!~"5.."}[2m]))
+            /
+            sum(rate(http_server_requests_total{service="gateway"}[2m]))

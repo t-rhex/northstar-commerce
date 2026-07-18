@@ -1,0 +1,15 @@
+common --announce_rc
+common --repo_contents_cache=
+build --keep_going
+build --show_timestamps
+build --verbose_failures
+build --java_runtime_version=remotejdk_21
+build --tool_java_runtime_version=remotejdk_21
+test --test_output=errors
+test --test_summary=detailed
+
+# CI can override this with --config=ci while retaining useful local output.
+build:ci --color=no
+build:ci --curses=no
+test:ci --color=no
+test:ci --curses=no

@@ -1,0 +1,15 @@
+packages:
+  - apps/web
+  - services/catalog
+  - services/cart
+  - services/checkout
+  - services/gateway
+  - services/inventory
+  - services/notifications
+  - services/orders
+  - services/payments
+
+# Keep dependency lifecycle scripts explicit and reviewable for hermetic builds.
+allowBuilds:
+  esbuild: true
+  protobufjs: false

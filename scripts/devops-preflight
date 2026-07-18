@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+required=(docker terraform kubectl helm aws trivy jq curl)
+missing=()
+
+for tool in "${required[@]}"; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    missing+=("$tool")
+  fi
+done
+
+if ((${#missing[@]})); then
+  echo "Missing required tools: ${missing[*]}" >&2
+  exit 1
+fi
+
+echo "Toolchain"
+docker --version
+terraform version | head -1
+kubectl version --client=true -o json | jq -r '"kubectl " + .clientVersion.gitVersion'
+helm version --short
+aws --version
+trivy --version | head -1
+
+if [[ "${1:-}" == "--aws" ]]; then
+  identity="$(aws sts get-caller-identity --output json)"
+  account="$(jq -r .Account <<<"$identity")"
+  arn="$(jq -r .Arn <<<"$identity")"
+  region="$(aws configure get region)"
+
+  if [[ -z "$region" ]]; then
+    echo "AWS Region is not configured." >&2
+    exit 1
+  fi
+  echo "AWS account: $account"
+  echo "AWS caller:  $arn"
+  echo "AWS region:  $region"
+
+  if [[ -n "${EXPECTED_AWS_ACCOUNT_ID:-}" && "$account" != "$EXPECTED_AWS_ACCOUNT_ID" ]]; then
+    echo "Account guard failed: expected $EXPECTED_AWS_ACCOUNT_ID, got $account" >&2
+    exit 1
+  fi
+fi
+
+echo "Preflight passed. Review the account, Region, budget, and destroy plan before applying cloud resources."

@@ -1,0 +1,302 @@
+name: northstar-commerce
+
+services:
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_GATEWAY_URL: http://localhost:${GATEWAY_HOST_PORT:-4000}/api/v1
+        VITE_JAEGER_URL: http://localhost:${JAEGER_HOST_PORT:-16686}
+    environment:
+      VITE_GATEWAY_URL: http://localhost:4000/api/v1
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      PORT: 4000
+      CATALOG_SERVICE_URL: http://catalog:4001
+      CART_SERVICE_URL: http://cart:4002
+      CHECKOUT_SERVICE_URL: http://checkout:4007
+      ANALYTICS_SERVICE_URL: http://analytics:4008
+      UPSTREAM_TIMEOUT_MS: 2500
+      OTEL_SERVICE_NAME: gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${GATEWAY_HOST_PORT:-4000}:4000"
+    depends_on:
+      catalog:
+        condition: service_healthy
+      cart:
+        condition: service_healthy
+      checkout:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  catalog:
+    build:
+      context: .
+      dockerfile: services/catalog/Dockerfile
+    environment:
+      PORT: 4001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-northstar}:${POSTGRES_PASSWORD:-northstar-dev}@postgres:5432/${POSTGRES_DB:-northstar}
+      OTEL_SERVICE_NAME: catalog
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${CATALOG_HOST_PORT:-4001}:4001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4001/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  cart:
+    build:
+      context: .
+      dockerfile: services/cart/Dockerfile
+    environment:
+      PORT: 4002
+      REDIS_URL: redis://redis:6379
+      CART_TTL_SECONDS: 86400
+      OTEL_SERVICE_NAME: cart
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${CART_HOST_PORT:-4002}:4002"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4002/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  orders:
+    build:
+      context: .
+      dockerfile: services/orders/Dockerfile
+    environment:
+      PORT: 4003
+      AMQP_URL: amqp://${RABBITMQ_USER:-northstar}:${RABBITMQ_PASSWORD:-northstar-dev}@rabbitmq:5672
+      DATABASE_URL: postgresql://${POSTGRES_USER:-northstar}:${POSTGRES_PASSWORD:-northstar-dev}@postgres:5432/${POSTGRES_DB:-northstar}
+      OUTBOX_POLL_MS: 2000
+      OTEL_SERVICE_NAME: orders
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${ORDER_HOST_PORT:-4003}:4003"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4003/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  notifications:
+    build:
+      context: .
+      dockerfile: services/notifications/Dockerfile
+    environment:
+      PORT: 4004
+      AMQP_URL: amqp://${RABBITMQ_USER:-northstar}:${RABBITMQ_PASSWORD:-northstar-dev}@rabbitmq:5672
+      WORKER_CONCURRENCY: 10
+      OTEL_SERVICE_NAME: notifications
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${NOTIFICATION_HOST_PORT:-4004}:4004"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4004/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  inventory:
+    build:
+      context: .
+      dockerfile: services/inventory-java/Dockerfile
+    environment:
+      PORT: 4005
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-northstar}
+      POSTGRES_USER: ${POSTGRES_USER:-northstar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-northstar-dev}
+      SIMULATED_LATENCY_MS: ${INVENTORY_LATENCY_MS:-450}
+      SIMULATED_FAILURE_RATE: ${INVENTORY_FAILURE_RATE:-0}
+      OTEL_SERVICE_NAME: inventory-java
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+    ports:
+      - "${INVENTORY_HOST_PORT:-4005}:4005"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4005/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payments:
+    build:
+      context: .
+      dockerfile: services/payments-go/Dockerfile
+    environment:
+      PORT: 4006
+      DATABASE_URL: postgresql://${POSTGRES_USER:-northstar}:${POSTGRES_PASSWORD:-northstar-dev}@postgres:5432/${POSTGRES_DB:-northstar}?sslmode=disable
+      SIMULATED_LATENCY_MS: ${PAYMENT_LATENCY_MS:-650}
+      SIMULATED_FAILURE_RATE: ${PAYMENT_FAILURE_RATE:-0}
+      OTEL_SERVICE_NAME: payments-go
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${PAYMENT_HOST_PORT:-4006}:4006"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4006/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analytics:
+    build:
+      context: .
+      dockerfile: services/analytics-python/Dockerfile
+    environment:
+      PORT: 4008
+      DATABASE_URL: postgresql://${POSTGRES_USER:-northstar}:${POSTGRES_PASSWORD:-northstar-dev}@postgres:5432/${POSTGRES_DB:-northstar}
+      AMQP_URL: amqp://${RABBITMQ_USER:-northstar}:${RABBITMQ_PASSWORD:-northstar-dev}@rabbitmq:5672
+      WORKER_CONCURRENCY: 10
+      OTEL_SERVICE_NAME: analytics-python
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${ANALYTICS_HOST_PORT:-4008}:4008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4008/health/ready')"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  checkout:
+    build:
+      context: .
+      dockerfile: services/checkout/Dockerfile
+    environment:
+      PORT: 4007
+      CART_SERVICE_URL: http://cart:4002
+      INVENTORY_SERVICE_URL: http://inventory:4005
+      PAYMENT_SERVICE_URL: http://payments:4006
+      ORDER_SERVICE_URL: http://orders:4003
+      UPSTREAM_TIMEOUT_MS: 4000
+      OTEL_SERVICE_NAME: checkout
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${CHECKOUT_HOST_PORT:-4007}:4007"
+    depends_on:
+      cart:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4007/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8.8-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-northstar}
+      POSTGRES_USER: ${POSTGRES_USER:-northstar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-northstar-dev}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-northstar} -d ${POSTGRES_DB:-northstar}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-northstar}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-northstar-dev}
+    ports:
+      - "${RABBITMQ_AMQP_HOST_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_HOST_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.156.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "${OTEL_GRPC_HOST_PORT:-4317}:4317"
+      - "${OTEL_HTTP_HOST_PORT:-4318}:4318"
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_HOST_PORT:-16686}:16686"
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:

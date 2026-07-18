@@ -1,0 +1,38 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata: { name: northstar-baseline }
+spec:
+  background: true
+  rules:
+    - name: require-ownership-labels
+      skipBackgroundRequests: true
+      match: { any: [{ resources: { kinds: [Pod], namespaces: [northstar] } }] }
+      validate:
+        failureAction: Audit
+        message: Northstar workloads require ownership and environment labels.
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/part-of: northstar-commerce
+              environment: "?*"
+    - name: require-immutable-images
+      skipBackgroundRequests: true
+      match: { any: [{ resources: { kinds: [Pod], namespaces: [northstar] } }] }
+      validate:
+        failureAction: Audit
+        message: Images must be promoted by sha256 digest.
+        foreach:
+          - list: request.object.spec.containers
+            pattern: { image: "*@sha256:*" }
+    - name: require-container-security
+      skipBackgroundRequests: true
+      match: { any: [{ resources: { kinds: [Pod], namespaces: [northstar] } }] }
+      validate:
+        failureAction: Audit
+        message: Containers must drop capabilities and prevent privilege escalation.
+        foreach:
+          - list: request.object.spec.containers
+            pattern:
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: { drop: [ALL] }

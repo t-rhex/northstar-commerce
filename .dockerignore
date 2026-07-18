@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.git
+**/*.log
+.bazel-cache
+bazel-*
+.pnpm-store
+.wrangler
+build
+app
+db
+drizzle
+examples
+public
+tests

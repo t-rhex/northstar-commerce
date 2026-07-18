@@ -1,0 +1,11 @@
+{
+  "name": "@northstar/notification-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "amqplib": "^2.0.1"
+  }
+}

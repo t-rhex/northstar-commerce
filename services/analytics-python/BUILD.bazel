@@ -1,0 +1,45 @@
+load("@analytics_pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "requirements.lock.txt",
+    "requirements.txt",
+])
+
+py_library(
+    name = "analytics_lib",
+    imports = ["."],
+    srcs = ["app.py"],
+    deps = [
+        requirement("fastapi"),
+        requirement("opentelemetry-api"),
+        requirement("opentelemetry-exporter-otlp-proto-http"),
+        requirement("opentelemetry-instrumentation-fastapi"),
+        requirement("opentelemetry-sdk"),
+        requirement("pika"),
+        requirement("psycopg"),
+        requirement("psycopg-binary"),
+        requirement("uvicorn"),
+    ],
+)
+
+py_binary(
+    name = "analytics",
+    legacy_create_init = 0,
+    srcs = ["main.py"],
+    main = "main.py",
+    deps = [
+        ":analytics_lib",
+        requirement("uvicorn"),
+    ],
+)
+
+py_test(
+    name = "smoke_test",
+    legacy_create_init = 0,
+    main = "app_test.py",
+    srcs = ["app_test.py"],
+    deps = [":analytics_lib"],
+)

@@ -1,0 +1,40 @@
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+package(default_visibility = ["//visibility:public"])
+
+npm_link_all_packages()
+
+exports_files([
+    "maven_install.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+])
+
+alias(
+    name = "storefront",
+    actual = "//apps/web:storefront",
+)
+
+alias(
+    name = "inventory",
+    actual = "//services/inventory-java:inventory",
+)
+
+alias(
+    name = "payments",
+    actual = "//services/payments-go:payments",
+)
+
+alias(
+    name = "analytics",
+    actual = "//services/analytics-python:analytics",
+)
+
+test_suite(
+    name = "unit_tests",
+    tests = [
+        "//apps/web:unit_tests",
+        "//services/analytics-python:smoke_test",
+    ],
+)

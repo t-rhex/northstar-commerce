@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+workspace_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if command -v bazelisk >/dev/null 2>&1; then
+  exec bazelisk "$@"
+fi
+
+if command -v bazel >/dev/null 2>&1; then
+  exec bazel "$@"
+fi
+
+if command -v npx >/dev/null 2>&1; then
+  exec npx --yes @bazel/bazelisk@latest "$@"
+fi
+
+mkdir -p "${workspace_dir}/.bazel-cache"
+
+exec docker run --rm \
+  --platform linux/amd64 \
+  --user "$(id -u):$(id -g)" \
+  --volume "${workspace_dir}:/workspace" \
+  --workdir /workspace \
+  gcr.io/bazel-public/bazel:9.1.0 \
+  --output_user_root=/workspace/.bazel-cache \
+  "$@"

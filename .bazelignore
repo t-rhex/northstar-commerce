@@ -1,0 +1,12 @@
+.bazel-cache
+node_modules
+apps/web/node_modules
+apps/web/dist
+services/catalog/node_modules
+services/cart/node_modules
+services/checkout/node_modules
+services/gateway/node_modules
+services/inventory/node_modules
+services/orders/node_modules
+services/notifications/node_modules
+services/payments/node_modules

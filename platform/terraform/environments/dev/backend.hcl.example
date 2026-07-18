@@ -1,0 +1,5 @@
+bucket       = "REPLACE-WITH-NORTHSTAR-TFSTATE"
+region       = "us-east-1"
+kms_key_id   = "REPLACE-WITH-STATE-KMS-KEY-ARN"
+use_lockfile = true
+encrypt      = true

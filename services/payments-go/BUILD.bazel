@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "go.mod",
+    "go.sum",
+])
+
+go_library(
+    name = "payments_lib",
+    srcs = ["main.go"],
+    importpath = "northstar.dev/payments",
+    deps = [
+        "@com_github_jackc_pgx_v5//pgxpool",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
+        "@io_opentelemetry_go_otel//:otel",
+        "@io_opentelemetry_go_otel//propagation",
+        "@io_opentelemetry_go_otel//semconv/v1.37.0:v1_37_0",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracehttp//:otlptracehttp",
+        "@io_opentelemetry_go_otel_sdk//resource",
+        "@io_opentelemetry_go_otel_sdk//trace",
+    ],
+)
+
+go_binary(
+    name = "payments",
+    embed = [":payments_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    pure = "on",
+)
+
+pkg_tar(
+    name = "payments_layer",
+    srcs = [":payments"],
+    package_dir = "/app",
+)
+
+oci_image(
+    name = "payments_image",
+    architecture = "amd64",
+    entrypoint = ["/app/payments"],
+    env = {
+        "PORT": "4006",
+    },
+    os = "linux",
+    tars = [":payments_layer"],
+)
+
+oci_load(
+    name = "payments_load",
+    image = ":payments_image",
+    repo_tags = ["northstar-commerce-payments:bazel"],
+)

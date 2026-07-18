@@ -1,0 +1,53 @@
+load("@aspect_rules_js//js:defs.bzl", "js_run_binary")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//apps/web:vite/package_json.bzl", vite = "bin")
+load("@npm//apps/web:vitest/package_json.bzl", vitest = "bin")
+
+package(default_visibility = ["//visibility:public"])
+
+npm_link_all_packages()
+
+vite.vite_binary(
+    name = "vite",
+    data = [
+        ":node_modules",
+    ] + glob([
+        "public/**",
+        "src/**",
+        "*.json",
+        "*.ts",
+    ]),
+)
+
+js_run_binary(
+    name = "storefront",
+    args = [
+        "build",
+        "--outDir",
+        "storefront",
+    ],
+    chdir = package_name(),
+    out_dirs = ["storefront"],
+    srcs = [
+        ":node_modules",
+    ] + glob([
+        "public/**",
+        "src/**",
+        "*.json",
+        "*.ts",
+    ]),
+    tool = ":vite",
+)
+
+vitest.vitest_test(
+    name = "unit_tests",
+    args = ["run"],
+    chdir = package_name(),
+    data = [
+        ":node_modules",
+    ] + glob([
+        "src/**",
+        "*.json",
+        "*.ts",
+    ]),
+)

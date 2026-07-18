@@ -1,0 +1,76 @@
+global:
+  registry: 123456789012.dkr.ecr.us-east-1.amazonaws.com/northstar
+  imageDigest: ""
+  environment: dev
+  otlpEndpoint: http://adot-collector.observability:4318
+  runtimeSecret: northstar-runtime
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: alb
+  host: northstar.example.com
+  certificateArn: ""
+
+networkPolicy:
+  enabled: true
+
+services:
+  web:
+    port: 3000
+    replicas: 2
+    healthPath: /
+    public: true
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+  gateway:
+    port: 4000
+    replicas: 2
+    public: true
+    env:
+      CATALOG_SERVICE_URL: http://catalog:4001
+      CART_SERVICE_URL: http://cart:4002
+      CHECKOUT_SERVICE_URL: http://checkout:4007
+      ANALYTICS_SERVICE_URL: http://analytics:4008
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 384Mi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 65 }
+  catalog:
+    port: 4001
+    replicas: 2
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 384Mi } }
+  cart:
+    port: 4002
+    replicas: 2
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 384Mi } }
+  orders:
+    port: 4003
+    replicas: 2
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 384Mi } }
+  notifications:
+    port: 4004
+    replicas: 2
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 384Mi } }
+  inventory:
+    port: 4005
+    replicas: 2
+    imageName: inventory
+    resources: { requests: { cpu: 200m, memory: 256Mi }, limits: { cpu: "1", memory: 768Mi } }
+  payments:
+    port: 4006
+    replicas: 2
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 384Mi } }
+  checkout:
+    port: 4007
+    replicas: 2
+    env:
+      CART_SERVICE_URL: http://cart:4002
+      INVENTORY_SERVICE_URL: http://inventory:4005
+      PAYMENT_SERVICE_URL: http://payments:4006
+      ORDER_SERVICE_URL: http://orders:4003
+    resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 384Mi } }
+  analytics:
+    port: 4008
+    replicas: 2
+    resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { cpu: 500m, memory: 512Mi } }

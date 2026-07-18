@@ -1,0 +1,20 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+npm_link_all_packages()
+
+js_binary(
+    name = "cart",
+    chdir = package_name(),
+    data = [
+        ":node_modules",
+        "//:node_modules/@opentelemetry/api",
+        "//:node_modules/@opentelemetry/exporter-trace-otlp-http",
+        "//:node_modules/@opentelemetry/resources",
+        "//:node_modules/@opentelemetry/sdk-node",
+        "//:node_modules/@opentelemetry/semantic-conventions",
+        "//packages/service-runtime:runtime",
+    ],
+    entry_point = "server.mjs",
+    visibility = ["//visibility:public"],
+)

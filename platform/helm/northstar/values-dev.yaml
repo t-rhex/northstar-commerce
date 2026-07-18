@@ -1,0 +1,14 @@
+global:
+  environment: dev
+
+services:
+  web: { replicas: 1 }
+  gateway: { replicas: 1 }
+  catalog: { replicas: 1 }
+  cart: { replicas: 1 }
+  orders: { replicas: 1 }
+  notifications: { replicas: 1 }
+  inventory: { replicas: 1 }
+  payments: { replicas: 1 }
+  checkout: { replicas: 1 }
+  analytics: { replicas: 1 }

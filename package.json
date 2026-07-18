@@ -1,0 +1,32 @@
+{
+  "name": "northstar-commerce",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A pluggable microservice ecommerce demo with TanStack Start and shadcn/ui",
+  "packageManager": "pnpm@10.28.2",
+  "scripts": {
+    "dev": "npm --prefix apps/web run dev",
+    "build": "npm --prefix apps/web run build",
+    "typecheck": "npm --prefix apps/web run typecheck",
+    "test": "node --test tests/integration.test.mjs",
+    "services": "./scripts/compose up --build",
+    "services:down": "./scripts/compose down",
+    "elastic:up": "./scripts/compose -f compose.yaml -f compose.elastic.yaml --profile elastic up -d --build",
+    "elastic:down": "./scripts/compose -f compose.yaml -f compose.elastic.yaml --profile elastic down",
+    "devops:preflight": "./scripts/devops-preflight",
+    "devops:validate": "./scripts/validate-devops-assets",
+    "bazel:build": "./bazelw build //...",
+    "bazel:test": "./bazelw test //:unit_tests",
+    "bazel:payments-image": "./bazelw run //services/payments-go:payments_load"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
+    "@opentelemetry/resources": "^2.9.0",
+    "@opentelemetry/sdk-node": "^0.220.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3"
+  }
+}

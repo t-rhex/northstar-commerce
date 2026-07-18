@@ -1,0 +1,11 @@
+{
+  "name": "@northstar/cart-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "redis": "^6.1.0"
+  }
+}

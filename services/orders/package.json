@@ -1,0 +1,12 @@
+{
+  "name": "@northstar/order-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "amqplib": "^2.0.1",
+    "pg": "^8.22.0"
+  }
+}

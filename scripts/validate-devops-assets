@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+digest="sha256:$(printf '0%.0s' {1..64})"
+
+terraform fmt -check -recursive platform/terraform
+helm lint platform/helm/northstar --set "global.imageDigest=$digest"
+helm template northstar platform/helm/northstar --namespace northstar --set "global.imageDigest=$digest" >/dev/null
+
+ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_stream(File.read(path)) }' \
+  platform/gitops/argocd/*.yaml \
+  platform/kubernetes/progressive-delivery/*.yaml \
+  platform/security/kyverno/*.yaml \
+  platform/security/external-secrets/*.yaml \
+  platform/autoscaling/karpenter/*.yaml
+
+test "$(find labs -mindepth 2 -maxdepth 2 -name README.md | wc -l | tr -d ' ')" -eq 32
+rg -q 'use_lockfile\s*=\s*true' platform/terraform
+! rg -n 'autoscaling/v2beta|external-secrets.io/v1beta1|kind: Provisioner|kind: AWSNodeTemplate|image: .*:latest' platform
+
+echo "DevOps curriculum assets passed static validation."

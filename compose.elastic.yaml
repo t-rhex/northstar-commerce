@@ -1,0 +1,119 @@
+x-elastic-logging: &elastic-logging
+  driver: gelf
+  options:
+    gelf-address: "udp://127.0.0.1:${LOGSTASH_GELF_HOST_PORT:-12201}"
+    gelf-compression-type: "none"
+    tag: "{{.Name}}"
+
+services:
+  web:
+    logging: *elastic-logging
+
+  gateway:
+    logging: *elastic-logging
+
+  catalog:
+    logging: *elastic-logging
+
+  cart:
+    logging: *elastic-logging
+
+  checkout:
+    logging: *elastic-logging
+
+  orders:
+    logging: *elastic-logging
+
+  notifications:
+    logging: *elastic-logging
+
+  inventory:
+    logging: *elastic-logging
+
+  payments:
+    logging: *elastic-logging
+
+  analytics:
+    logging: *elastic-logging
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.2
+    profiles: ["elastic"]
+    environment:
+      discovery.type: single-node
+      cluster.name: northstar-logs
+      node.name: northstar-elasticsearch
+      xpack.security.enabled: "false"
+      xpack.license.self_generated.type: basic
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "${ELASTICSEARCH_HOST_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      interval: 10s
+      timeout: 6s
+      retries: 30
+    mem_limit: 1g
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.4.2
+    profiles: ["elastic"]
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+    ports:
+      - "${LOGSTASH_GELF_HOST_PORT:-12201}:12201/udp"
+      - "${LOGSTASH_API_HOST_PORT:-9600}:9600"
+    volumes:
+      - ./infra/elastic/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./infra/elastic/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - logstash-data:/usr/share/logstash/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9600/_node/pipelines >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    mem_limit: 768m
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.4.2
+    profiles: ["elastic"]
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      XPACK_SECURITY_ENABLED: "false"
+      TELEMETRY_ENABLED: "false"
+      SERVER_NAME: northstar-kibana
+    ports:
+      - "${KIBANA_HOST_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5601/api/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+    mem_limit: 1g
+
+  elastic-setup:
+    image: curlimages/curl:8.16.0
+    profiles: ["elastic"]
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+    volumes:
+      - ./infra/elastic/bootstrap.sh:/bootstrap.sh:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+      logstash:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  elasticsearch-data:
+  logstash-data:

@@ -1,0 +1,193 @@
+openapi: 3.1.0
+info:
+  title: Northstar Commerce Gateway
+  version: 1.0.0
+  description: Stable public contract composed from independently deployable commerce capabilities.
+servers:
+  - url: http://localhost:4000/api/v1
+paths:
+  /status:
+    get:
+      operationId: getServiceStatus
+      responses:
+        "200": { description: All required capabilities are ready }
+        "502": { $ref: "#/components/responses/ServiceError" }
+  /products:
+    get:
+      operationId: listProducts
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Matching products
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total, categories]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Product" } }
+                  total: { type: integer }
+                  categories: { type: array, items: { type: string } }
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product
+          content: { application/json: { schema: { $ref: "#/components/schemas/Product" } } }
+        "404": { $ref: "#/components/responses/ServiceError" }
+  /cart:
+    get:
+      operationId: getCart
+      responses:
+        "200":
+          description: Current cart
+          content: { application/json: { schema: { $ref: "#/components/schemas/Cart" } } }
+  /cart/items:
+    post:
+      operationId: addCartItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                productId: { type: string }
+                quantity: { type: integer, minimum: 1, maximum: 20, default: 1 }
+      responses:
+        "201":
+          description: Updated cart
+          content: { application/json: { schema: { $ref: "#/components/schemas/Cart" } } }
+        "422": { $ref: "#/components/responses/ServiceError" }
+  /cart/items/{productId}:
+    delete:
+      operationId: removeCartItem
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Updated cart }
+  /checkout:
+    post:
+      operationId: checkout
+      parameters:
+        - name: idempotency-key
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string, minLength: 1 }
+                email: { type: string, format: email }
+      responses:
+        "202":
+          description: Checkout transaction accepted for processing
+          headers:
+            x-trace-id: { schema: { type: string }, description: OpenTelemetry trace ID }
+          content: { application/json: { schema: { $ref: "#/components/schemas/CheckoutTransaction" } } }
+        "409": { $ref: "#/components/responses/ServiceError" }
+        "422": { $ref: "#/components/responses/ServiceError" }
+  /checkouts/{checkoutId}:
+    get:
+      operationId: getCheckoutTransaction
+      parameters:
+        - { name: checkoutId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Current checkout workflow state
+          content: { application/json: { schema: { $ref: "#/components/schemas/CheckoutTransaction" } } }
+        "404": { $ref: "#/components/responses/ServiceError" }
+  /analytics/summary:
+    get:
+      operationId: getCommerceAnalytics
+      description: Returns an eventually consistent aggregate produced by the Python RabbitMQ consumer.
+      responses:
+        "200":
+          description: Commerce summary
+          content: { application/json: { schema: { $ref: "#/components/schemas/AnalyticsSummary" } } }
+        "502": { $ref: "#/components/responses/ServiceError" }
+components:
+  responses:
+    ServiceError:
+      description: Standard error envelope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  schemas:
+    Product:
+      type: object
+      required: [id, name, category, price, stock, image]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { type: string }
+        price: { type: number, minimum: 0 }
+        stock: { type: integer, minimum: 0 }
+        image: { type: string, format: uri }
+    Cart:
+      type: object
+      required: [id, items, itemCount, subtotal, shipping, total]
+      properties:
+        id: { type: string }
+        items: { type: array, items: { type: object } }
+        itemCount: { type: integer }
+        subtotal: { type: number }
+        shipping: { type: number }
+        total: { type: number }
+    CheckoutStep:
+      type: object
+      required: [key, label, status]
+      properties:
+        key: { type: string, enum: [cart, inventory, payment, order, notification] }
+        label: { type: string }
+        status: { type: string, enum: [pending, running, completed, failed, compensated] }
+        detail: { type: string }
+    CheckoutTransaction:
+      type: object
+      required: [id, status, traceId, steps]
+      properties:
+        id: { type: string, pattern: "^CHK-" }
+        status: { type: string, enum: [processing, completed, failed] }
+        traceId: { type: string }
+        orderId: { type: string }
+        paymentId: { type: string }
+        reservationId: { type: string }
+        amount: { type: number }
+        steps: { type: array, items: { $ref: "#/components/schemas/CheckoutStep" } }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+    AnalyticsSummary:
+      type: object
+      required: [orders, revenue, averageOrderValue, items, generatedAt]
+      properties:
+        orders: { type: integer, minimum: 0 }
+        revenue: { type: number, minimum: 0 }
+        averageOrderValue: { type: number, minimum: 0 }
+        items: { type: integer, minimum: 0 }
+        generatedAt: { type: string, format: date-time }
+    ErrorEnvelope:
+      type: object
+      required: [error, requestId]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object }
+        requestId: { type: string }

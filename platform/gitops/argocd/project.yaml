@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: northstar
+  namespace: argocd
+spec:
+  description: Northstar application environments
+  sourceRepos: ["https://github.com/REPLACE_ORG/REPLACE_CONFIG_REPO.git"]
+  destinations: [{ namespace: northstar, server: "https://kubernetes.default.svc" }]
+  clusterResourceWhitelist: []
+  namespaceResourceBlacklist:
+    - { group: "", kind: ResourceQuota }
+  roles:
+    - name: developer-readonly
+      policies: ["p, proj:northstar:developer-readonly, applications, get, northstar/*, allow"]

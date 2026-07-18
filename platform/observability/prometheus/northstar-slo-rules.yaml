@@ -1,0 +1,22 @@
+groups:
+  - name: northstar-checkout-slo
+    interval: 30s
+    rules:
+      - record: northstar:checkout_success:ratio_rate5m
+        expr: sum(rate(checkout_completed_total[5m])) / clamp_min(sum(rate(checkout_started_total[5m])), 1)
+      - alert: CheckoutAvailabilityFastBurn
+        expr: (1 - northstar:checkout_success:ratio_rate5m) > (14.4 * 0.001)
+        for: 5m
+        keep_firing_for: 5m
+        labels: { severity: page, service: checkout, team: commerce-platform }
+        annotations:
+          summary: Checkout is rapidly consuming its 99.9% availability error budget.
+          runbook_url: https://github.com/REPLACE_ORG/REPLACE_REPO/blob/main/runbooks/checkout-slo.md
+      - alert: CheckoutAvailabilitySlowBurn
+        expr: (1 - (sum(rate(checkout_completed_total[1h])) / clamp_min(sum(rate(checkout_started_total[1h])), 1))) > (6 * 0.001)
+        for: 30m
+        keep_firing_for: 10m
+        labels: { severity: ticket, service: checkout, team: commerce-platform }
+        annotations:
+          summary: Checkout is steadily consuming its availability error budget.
+          runbook_url: https://github.com/REPLACE_ORG/REPLACE_REPO/blob/main/runbooks/checkout-slo.md
