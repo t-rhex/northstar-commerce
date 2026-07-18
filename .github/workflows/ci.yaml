@@ -30,9 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with: { terraform_version: "1.15.6", terraform_wrapper: false }
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with: { version: "4.2.2" }
       - run: terraform fmt -check -recursive platform/terraform
       - run: helm lint platform/helm/northstar --set global.imageDigest=sha256:0000000000000000000000000000000000000000000000000000000000000000
