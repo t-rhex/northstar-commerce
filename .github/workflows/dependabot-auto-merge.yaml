@@ -1,0 +1,33 @@
+name: dependabot-auto-merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# This workflow intentionally never checks out or executes pull-request code.
+# It only inspects GitHub-authenticated Dependabot metadata and schedules merge.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  evaluate:
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read authenticated Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Schedule patch and minor update for guarded auto-merge
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Keep major update for human review
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: echo "Major dependency updates require human review and explicit merge."
