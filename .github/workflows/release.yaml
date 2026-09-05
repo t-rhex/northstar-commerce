@@ -34,7 +34,7 @@ jobs:
             analytics) echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=services/analytics-python/Dockerfile" >> "$GITHUB_OUTPUT" ;;
             *) echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=services/${{ inputs.service }}/Dockerfile" >> "$GITHUB_OUTPUT" ;;
           esac
-      - uses: aws-actions/configure-aws-credentials@v6.1.0
+      - uses: aws-actions/configure-aws-credentials@v6.2.4
         with:
           role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
